@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101c2c">
+  <meta name="description" content="Panel de monitorización de temperatura de cuarto frío y corriente del compresor.">
+  <title>Monitor de cuarto frío</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #142238;
+      --muted: #64748b;
+      --line: #e4eaf1;
+      --surface: #ffffff;
+      --page: #f3f6fa;
+      --blue: #2586e8;
+      --yellow: #e7ae20;
+      --red: #e34b4b;
+      --green: #20a46b;
+      --shadow: 0 16px 42px rgba(27, 47, 75, .08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--page);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .topbar {
+      color: #fff;
+      background: #101c2c;
+      padding: 27px max(22px, calc((100vw - 1120px) / 2));
+    }
+    .topbar-inner { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .brand { display: flex; align-items: center; gap: 14px; }
+    .brand-mark {
+      width: 46px; height: 46px; display: grid; place-items: center;
+      border: 1px solid rgba(255,255,255,.18); border-radius: 14px;
+      background: rgba(255,255,255,.08); color: #9dd1ff;
+    }
+    .brand-mark svg { width: 26px; height: 26px; }
+    h1 { margin: 0; font-size: clamp(20px, 3vw, 27px); letter-spacing: -.7px; }
+    .subtitle { margin: 5px 0 0; color: #aab8c9; font-size: 13px; }
+    .top-actions { display: flex; align-items: center; gap: 13px; }
+    .connection {
+      display: inline-flex; align-items: center; gap: 8px; color: #c4d0df;
+      font-size: 12px; white-space: nowrap;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #e5ad32; box-shadow: 0 0 0 4px rgba(229,173,50,.12); }
+    .dot.online { background: #38c889; box-shadow: 0 0 0 4px rgba(56,200,137,.13); }
+    .dot.offline { background: #ef6262; box-shadow: 0 0 0 4px rgba(239,98,98,.13); }
+    button {
+      border: 1px solid rgba(255,255,255,.2); border-radius: 10px;
+      padding: 10px 14px; background: rgba(255,255,255,.1); color: #fff;
+      font: inherit; font-size: 12px; font-weight: 650; cursor: pointer;
+      transition: background .2s, transform .2s;
+    }
+    button:hover { background: rgba(255,255,255,.17); }
+    button:active { transform: translateY(1px); }
+    button:disabled { opacity: .6; cursor: wait; }
+    main { width: min(1120px, calc(100% - 36px)); margin: 34px auto 50px; }
+    .section-head { display: flex; justify-content: space-between; align-items: end; gap: 16px; margin-bottom: 18px; }
+    .eyebrow { margin: 0 0 6px; color: #7a8aa0; font-size: 10px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; }
+    h2 { margin: 0; font-size: 21px; letter-spacing: -.45px; }
+    .updated { color: var(--muted); font-size: 12px; text-align: right; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+    .card {
+      min-width: 0; overflow: hidden; background: var(--surface); border: 1px solid var(--line);
+      border-radius: 19px; box-shadow: var(--shadow);
+    }
+    .card-top { padding: 23px 24px 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .card-title { display: flex; align-items: center; gap: 10px; }
+    .card-title h3 { margin: 0; font-size: 15px; font-weight: 750; }
+    .small-icon { width: 31px; height: 31px; display: grid; place-items: center; border-radius: 9px; background: #f0f4f8; color: #58708c; }
+    .small-icon svg { width: 17px; height: 17px; }
+    .tag { border-radius: 999px; padding: 6px 10px; background: #f0f3f7; color: #78879a; font-size: 10px; font-weight: 800; letter-spacing: .35px; white-space: nowrap; }
+    .visual-row { min-height: 226px; padding: 14px 24px 8px; display: flex; align-items: center; justify-content: center; gap: clamp(18px, 4vw, 48px); }
+    .device { width: min(44%, 185px); height: 190px; display: grid; place-items: center; color: #9aa9ba; }
+    .device svg { width: 100%; height: 100%; overflow: visible; }
+    .device .color-fill { fill: currentColor; opacity: .15; }
+    .device .color-stroke { stroke: currentColor; }
+    .device.status-blue { color: var(--blue); }
+    .device.status-yellow { color: var(--yellow); }
+    .device.status-red { color: var(--red); }
+    .device.status-green { color: var(--green); }
+    .reading { min-width: 0; padding-bottom: 3px; }
+    .value { display: flex; align-items: baseline; gap: 5px; white-space: nowrap; }
+    .number { font-size: clamp(42px, 6vw, 58px); line-height: 1; font-weight: 780; letter-spacing: -2.5px; font-variant-numeric: tabular-nums; }
+    .unit { color: #75859a; font-size: 19px; font-weight: 650; }
+    .state { margin-top: 13px; display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 750; }
+    .state-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    .state.status-blue { color: var(--blue); }
+    .state.status-yellow { color: #bc8b0e; }
+    .state.status-red { color: var(--red); }
+    .state.status-green { color: var(--green); }
+    .detail { margin: 8px 0 0; max-width: 190px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+    .card-bottom { border-top: 1px solid #edf1f5; padding: 16px 24px 19px; }
+    .threshold-title { margin: 0 0 10px; color: #7b8a9c; font-size: 9px; font-weight: 800; letter-spacing: 1.15px; text-transform: uppercase; }
+    .thresholds { display: flex; flex-wrap: wrap; gap: 8px; }
+    .threshold { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 7px; background: #f6f8fa; color: #536277; font-size: 10px; }
+    .threshold i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .threshold.blue { color: var(--blue); }
+    .threshold.yellow { color: #bb8b13; }
+    .threshold.red { color: var(--red); }
+    .threshold.green { color: var(--green); }
+    .threshold span { color: #536277; }
+    .notice {
+      margin-top: 20px; padding: 13px 16px; display: flex; align-items: flex-start; gap: 10px;
+      border: 1px solid #e2e9f1; border-radius: 12px; background: #f9fbfd;
+      color: #617187; font-size: 11px; line-height: 1.55;
+    }
+    .notice svg { width: 16px; height: 16px; flex: 0 0 auto; margin-top: 1px; }
+    .notice.error { border-color: #f0d6d6; background: #fff8f8; color: #9a4c4c; }
+    footer { width: min(1120px, calc(100% - 36px)); margin: 0 auto 25px; color: #93a0b0; font-size: 10px; text-align: center; }
+    @media (max-width: 720px) {
+      .topbar { padding: 20px 18px; }
+      .topbar-inner { align-items: flex-start; }
+      .top-actions { align-items: flex-end; flex-direction: column-reverse; gap: 10px; }
+      .connection { font-size: 10px; }
+      .grid { grid-template-columns: 1fr; }
+      main { margin-top: 25px; }
+    }
+    @media (max-width: 420px) {
+      .brand { gap: 9px; }
+      .brand-mark { width: 39px; height: 39px; }
+      .subtitle { max-width: 190px; font-size: 11px; }
+      .top-actions button { padding: 8px 10px; font-size: 10px; }
+      .visual-row { min-height: 205px; padding-inline: 18px; gap: 10px; }
+      .device { height: 165px; width: 42%; }
+      .number { font-size: 43px; }
+      .card-top, .card-bottom { padding-left: 18px; padding-right: 18px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v11.2a5 5 0 1 0 8 0V3a4 4 0 0 0-8 0Z"/><path d="M12 7v10"/><path d="M18.5 5.5h2M18.5 9h2"/></svg>
+        </div>
+        <div>
+          <h1>Monitor de cuarto frío</h1>
+          <p class="subtitle">Supervisión de temperatura y consumo del compresor</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <div class="connection" aria-live="polite"><span id="connection-dot" class="dot"></span><span id="connection-text">Conectando con Cygnus…</span></div>
+        <button id="refresh-button" type="button">↻ &nbsp;Actualizar ahora</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Panel de variables</p>
+        <h2>Estado en tiempo real</h2>
+      </div>
+      <div class="updated">Última consulta<br><strong id="last-update">Esperando datos…</strong></div>
+    </div>
+
+    <section class="grid" aria-label="Mediciones del cuarto frío">
+      <article class="card">
+        <div class="card-top">
+          <div class="card-title">
+            <span class="small-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 14.8V5a2 2 0 1 1 4 0v9.8a4 4 0 1 1-4 0Z"/><path d="M12 8v9"/></svg></span>
+            <h3>Temperatura del cuarto</h3>
+          </div>
+          <span class="tag">SENSOR DHT11</span>
+        </div>
+        <div class="visual-row">
+          <div id="thermometer" class="device" aria-hidden="true">
+            <svg viewBox="0 0 150 190" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="57" y="14" width="36" height="126" rx="18" stroke="currentColor" stroke-width="7"/>
+              <path d="M75 47v94" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
+              <circle cx="75" cy="147" r="25" class="color-fill" stroke="currentColor" stroke-width="7"/>
+              <path d="M75 70v76" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>
+              <path d="M101 42h12M101 67h9M101 92h12M101 117h9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+              <path d="M47 170h56" stroke="currentColor" stroke-width="4" stroke-linecap="round" opacity=".18"/>
+            </svg>
+          </div>
+          <div class="reading">
+            <div class="value"><span id="temperature-value" class="number">--.-</span><span class="unit">°C</span></div>
+            <div id="temperature-state" class="state"><span class="state-dot"></span><span>Esperando lectura</span></div>
+            <p id="temperature-detail" class="detail">Leyendo la temperatura reportada por el sensor.</p>
+          </div>
+        </div>
+        <div class="card-bottom">
+          <p class="threshold-title">Rangos de temperatura</p>
+          <div class="thresholds">
+            <span class="threshold blue"><i></i><span>Menor a 0 °C</span></span>
+            <span class="threshold yellow"><i></i><span>0 a 8 °C</span></span>
+            <span class="threshold red"><i></i><span>Mayor a 8 °C</span></span>
+          </div>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <div class="card-title">
+            <span class="small-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14v10H5zM8 8V5h8v3M8 18v2m8-2v2M3 11H1m22 0h-2"/><path d="M9 11h6m-6 3h6"/></svg></span>
+            <h3>Corriente del compresor</h3>
+          </div>
+          <span class="tag">SENSOR DE CORRIENTE</span>
+        </div>
+        <div class="visual-row">
+          <div id="compressor" class="device" aria-hidden="true">
+            <svg viewBox="0 0 190 170" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M52 26V13h25v13M65 13V5h30v8" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M128 47V24h23v-9h19" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M42 58c0-12 10-22 22-22h61c13 0 23 10 23 22v61c0 14-11 25-25 25H67c-14 0-25-11-25-25V58Z" class="color-fill" stroke="currentColor" stroke-width="7"/>
+              <path d="M61 56h68M61 68h68M61 80h68M61 92h68M61 104h68" stroke="currentColor" stroke-width="4" stroke-linecap="round" opacity=".65"/>
+              <path d="M34 69H20v34h14M156 82h14v21h-14" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M54 145v10h83v-10M70 155v7m51-7v7" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>
+              <circle cx="95" cy="120" r="8" fill="currentColor" opacity=".55"/>
+            </svg>
+          </div>
+          <div class="reading">
+            <div class="value"><span id="current-value" class="number">--.-</span><span class="unit">A</span></div>
+            <div id="current-state" class="state"><span class="state-dot"></span><span>Esperando lectura</span></div>
+            <p id="current-detail" class="detail">Leyendo el consumo eléctrico del compresor.</p>
+          </div>
+        </div>
+        <div class="card-bottom">
+          <p class="threshold-title">Rangos de corriente</p>
+          <div class="thresholds">
+            <span class="threshold green"><i></i><span>Menor a 12 A</span></span>
+            <span class="threshold yellow"><i></i><span>12 a 20 A</span></span>
+            <span class="threshold red"><i></i><span>Mayor a 20 A</span></span>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <div id="notice" class="notice" role="status" aria-live="polite">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></svg>
+      <span>Consultando los datos publicados en Cygnus. El panel se actualiza automáticamente cada 5 segundos.</span>
+    </div>
+  </main>
+
+  <footer>Monitor de cuarto frío · Datos suministrados por Cygnus</footer>
+
+  <script>
+    // API de Cygnus: las respuestas se reciben como texto plano (por ejemplo: 30.2 o 10).
+    const API = {
+      temperature: 'https://cygnus.uniajc.edu.co/appis/ldispositivo.php?id=205&c=dht11&v=',
+      current: 'https://cygnus.uniajc.edu.co/appis/ldispositivo.php?id=245&c=amperaje&v='
+    };
+    const REFRESH_MS = 5000;
+
+    const $ = (id) => document.getElementById(id);
+    const elements = {
+      temperatureValue: $('temperature-value'),
+      temperatureState: $('temperature-state'),
+      temperatureDetail: $('temperature-detail'),
+      thermometer: $('thermometer'),
+      currentValue: $('current-value'),
+      currentState: $('current-state'),
+      currentDetail: $('current-detail'),
+      compressor: $('compressor'),
+      lastUpdate: $('last-update'),
+      connectionDot: $('connection-dot'),
+      connectionText: $('connection-text'),
+      notice: $('notice'),
+      refreshButton: $('refresh-button')
+    };
+
+    function parseNumericResponse(raw) {
+      // Acepta texto plano y también una eventual respuesta JSON que contenga un valor numérico.
+      const text = String(raw).trim();
+      const direct = Number(text.replace(',', '.'));
+      if (text !== '' && Number.isFinite(direct)) return direct;
+      try {
+        const data = JSON.parse(text);
+        const candidates = [data.value, data.valor, data.temperature, data.temperatura, data.current, data.amperaje, data.data];
+        for (const candidate of candidates) {
+          const n = Number(String(candidate).replace(',', '.'));
+          if (candidate !== undefined && candidate !== null && String(candidate).trim() !== '' && Number.isFinite(n)) return n;
+        }
+      } catch (_) { /* La respuesta no era JSON. */ }
+      throw new Error('La API no devolvió un valor numérico. Respuesta: ' + text.slice(0, 80));
+    }
+
+    async function readApi(url) {
+      const response = await fetch(url, { method: 'GET', cache: 'no-store' });
+      if (!response.ok) throw new Error('La API respondió HTTP ' + response.status);
+      return parseNumericResponse(await response.text());
+    }
+
+    function setState(element, device, level, label, description) {
+      device.className = 'device status-' + level;
+      element.className = 'state status-' + level;
+      element.innerHTML = '<span class="state-dot"></span><span>' + label + '</span>';
+      return description;
+    }
+
+    function showTemperature(value) {
+      elements.temperatureValue.textContent = value.toFixed(1);
+      let detail;
+      if (value < 0) {
+        detail = setState(elements.temperatureState, elements.thermometer, 'blue', 'Temperatura bajo cero', 'El cuarto está por debajo de 0 °C.');
+      } else if (value <= 8) {
+        detail = setState(elements.temperatureState, elements.thermometer, 'yellow', 'Rango establecido', 'La temperatura está entre 0 y 8 °C.');
+      } else {
+        detail = setState(elements.temperatureState, elements.thermometer, 'red', 'Temperatura elevada', 'La temperatura supera el límite de 8 °C.');
+      }
+      elements.temperatureDetail.textContent = detail;
+    }
+
+    function showCurrent(value) {
+      elements.currentValue.textContent = value.toFixed(1);
+      let detail;
+      if (value < 12) {
+        detail = setState(elements.currentState, elements.compressor, 'green', 'Consumo en rango', 'La corriente está por debajo de 12 A.');
+      } else if (value <= 20) {
+        detail = setState(elements.currentState, elements.compressor, 'yellow', 'Consumo intermedio', 'La corriente está entre 12 y 20 A.');
+      } else {
+        detail = setState(elements.currentState, elements.compressor, 'red', 'Consumo elevado', 'La corriente supera los 20 A.');
+      }
+      elements.currentDetail.textContent = detail;
+    }
+
+    function showMetricError(kind, error) {
+      const isTemperature = kind === 'temperature';
+      const device = isTemperature ? elements.thermometer : elements.compressor;
+      const state = isTemperature ? elements.temperatureState : elements.currentState;
+      const detail = isTemperature ? elements.temperatureDetail : elements.currentDetail;
+      device.className = 'device';
+      state.className = 'state';
+      state.innerHTML = '<span class="state-dot"></span><span>Sin comunicación</span>';
+      detail.textContent = error.message || 'No fue posible consultar este dato.';
+      (isTemperature ? elements.temperatureValue : elements.currentValue).textContent = '--.-';
+    }
+
+    async function updateDashboard() {
+      elements.refreshButton.disabled = true;
+      elements.connectionText.textContent = 'Consultando Cygnus…';
+      elements.connectionDot.className = 'dot';
+      elements.notice.className = 'notice';
+      elements.notice.lastElementChild.textContent = 'Consultando las dos API de Cygnus…';
+
+      const results = await Promise.allSettled([
+        readApi(API.temperature),
+        readApi(API.current)
+      ]);
+      const tempOk = results[0].status === 'fulfilled';
+      const currentOk = results[1].status === 'fulfilled';
+
+      if (tempOk) showTemperature(results[0].value);
+      else showMetricError('temperature', results[0].reason);
+      if (currentOk) showCurrent(results[1].value);
+      else showMetricError('current', results[1].reason);
+
+      const now = new Date();
+      elements.lastUpdate.textContent = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      if (tempOk && currentOk) {
+        elements.connectionDot.className = 'dot online';
+        elements.connectionText.textContent = 'Conectado a Cygnus';
+        elements.notice.className = 'notice';
+        elements.notice.lastElementChild.textContent = 'Temperatura y corriente recibidas correctamente. Próxima actualización automática en 5 segundos.';
+      } else if (tempOk || currentOk) {
+        elements.connectionDot.className = 'dot offline';
+        elements.connectionText.textContent = 'Conexión parcial';
+        elements.notice.className = 'notice error';
+        elements.notice.lastElementChild.textContent = 'Una de las dos consultas falló. Revisa la conexión o la disponibilidad de la API correspondiente.';
+      } else {
+        elements.connectionDot.className = 'dot offline';
+        elements.connectionText.textContent = 'Sin conexión';
+        elements.notice.className = 'notice error';
+        elements.notice.lastElementChild.textContent = 'No fue posible consultar las API. Si la página está en GitHub Pages, verifica que el servidor de Cygnus permita solicitudes CORS desde el navegador.';
+      }
+      elements.refreshButton.disabled = false;
+    }
+
+    elements.refreshButton.addEventListener('click', updateDashboard);
+    updateDashboard();
+    setInterval(updateDashboard, REFRESH_MS);
+  </script>
+</body>
+</html>
